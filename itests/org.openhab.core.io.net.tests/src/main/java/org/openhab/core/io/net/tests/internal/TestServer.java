@@ -12,6 +12,8 @@
  */
 package org.openhab.core.io.net.tests.internal;
 
+import java.net.URI;
+
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jetty.http2.server.HTTP2CServerConnectionFactory;
 import org.eclipse.jetty.server.HttpConfiguration;
@@ -22,16 +24,15 @@ import org.eclipse.jetty.servlet.ServletHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 
 /**
- * Embedded jetty server used in the tests.
+ * Embedded Jetty server used in the tests.
  *
- * Based on {@code TestServer} of the FS Internet Radio Binding.
- *
- * @author Velin Yordanov - Initial contribution
- * @author Wouter Born - Increase test coverage
- * @author Andrew Fiddian-Green - Adapted for org.openhab.core.io.net.tests
+ * @author Andrew Fiddian-Green - Initial contribution
  */
 @NonNullByDefault
 public class TestServer {
+    private static final String SERVLET_PATH = "/servlet";
+    private static final String WEBSOCKET_PATH = "/ws";
+
     private final String host;
     private final int port;
     private final Server server;
@@ -42,11 +43,26 @@ public class TestServer {
         this.server = new Server();
     }
 
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public URI getHttpUri() {
+        return URI.create("http://" + host + ":" + port + SERVLET_PATH);
+    }
+
+    public URI getWebSocketUri() {
+        return URI.create("ws://" + host + ":" + port + WEBSOCKET_PATH);
+    }
+
     public void startServer() throws Exception {
         ServletHandler handler = new ServletHandler();
-        handler.addServletWithMapping(new ServletHolder(new TestHttpServlet()), "/http1");
-        handler.addServletWithMapping(new ServletHolder(new TestHttpServlet()), "/http2");
-        handler.addServletWithMapping(new ServletHolder(new TestWebSocketServlet()), "/ws");
+        handler.addServletWithMapping(new ServletHolder(new TestHttpServlet()), SERVLET_PATH);
+        handler.addServletWithMapping(new ServletHolder(new TestWebSocketServlet()), WEBSOCKET_PATH);
         server.setHandler(handler);
 
         HttpConfiguration httpConfig = new HttpConfiguration();
@@ -61,10 +77,7 @@ public class TestServer {
         server.start();
     }
 
-    public void stopServer() {
-        try {
-            server.stop();
-        } catch (Exception e) {
-        }
+    public void stopServer() throws Exception {
+        server.stop();
     }
 }
