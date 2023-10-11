@@ -45,10 +45,12 @@ public class AddonInfo implements Identifiable<String> {
     private final @Nullable String configDescriptionURI;
     private final String serviceId;
     private @Nullable String sourceBundle;
+    private @Nullable List<AddonDiscoveryMethod> discoveryMethods;
 
     private AddonInfo(String id, String type, String name, String description, @Nullable String connection,
             List<String> countries, @Nullable String configDescriptionURI, @Nullable String serviceId,
-            @Nullable String sourceBundle) throws IllegalArgumentException {
+            @Nullable String sourceBundle, @Nullable List<AddonDiscoveryMethod> discoveryMethods)
+            throws IllegalArgumentException {
         // mandatory fields
         if (id.isBlank()) {
             throw new IllegalArgumentException("The ID must neither be null nor empty!");
@@ -74,6 +76,7 @@ public class AddonInfo implements Identifiable<String> {
         this.configDescriptionURI = configDescriptionURI;
         this.serviceId = Objects.requireNonNullElse(serviceId, type + "." + id);
         this.sourceBundle = sourceBundle;
+        this.discoveryMethods = discoveryMethods;
     }
 
     /**
@@ -143,6 +146,11 @@ public class AddonInfo implements Identifiable<String> {
         return countries;
     }
 
+    public List<AddonDiscoveryMethod> getDiscoveryMethods() {
+        List<AddonDiscoveryMethod> discoveryMethods = this.discoveryMethods;
+        return discoveryMethods != null ? discoveryMethods : List.of();
+    }
+
     public static Builder builder(String id, String type) {
         return new Builder(id, type);
     }
@@ -162,6 +170,7 @@ public class AddonInfo implements Identifiable<String> {
         private @Nullable String configDescriptionURI = "";
         private @Nullable String serviceId;
         private @Nullable String sourceBundle;
+        private @Nullable List<AddonDiscoveryMethod> discoveryMethods;
 
         private Builder(String id, String type) {
             this.id = id;
@@ -178,6 +187,7 @@ public class AddonInfo implements Identifiable<String> {
             this.configDescriptionURI = addonInfo.configDescriptionURI;
             this.serviceId = addonInfo.serviceId;
             this.sourceBundle = addonInfo.sourceBundle;
+            this.discoveryMethods = addonInfo.discoveryMethods;
         }
 
         public Builder withName(String name) {
@@ -220,6 +230,11 @@ public class AddonInfo implements Identifiable<String> {
             return this;
         }
 
+        public Builder withDiscoveryMethods(@Nullable List<AddonDiscoveryMethod> discoveryMethods) {
+            this.discoveryMethods = discoveryMethods;
+            return this;
+        }
+
         /**
          * Build an {@link AddonInfo} from this builder
          *
@@ -228,7 +243,7 @@ public class AddonInfo implements Identifiable<String> {
          */
         public AddonInfo build() throws IllegalArgumentException {
             return new AddonInfo(id, type, name, description, connection, countries, configDescriptionURI, serviceId,
-                    sourceBundle);
+                    sourceBundle, discoveryMethods);
         }
     }
 }

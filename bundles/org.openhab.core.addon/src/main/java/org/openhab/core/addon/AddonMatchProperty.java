@@ -10,7 +10,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.core.config.discovery.addon.dto;
+package org.openhab.core.addon;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -21,11 +21,11 @@ import org.eclipse.jdt.annotation.Nullable;
  * @author Andrew Fiddian-Green - Initial contribution
  */
 @NonNullByDefault
-public class MatchProperty {
+public class AddonMatchProperty {
     private @Nullable String name;
     private @Nullable String regex;
 
-    public MatchProperty(String name, String regex) {
+    public AddonMatchProperty(String name, String regex) {
         this.name = name;
         this.regex = regex;
     }
