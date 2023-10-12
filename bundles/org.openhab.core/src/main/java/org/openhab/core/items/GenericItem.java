@@ -116,7 +116,7 @@ public abstract class GenericItem implements ActiveItem {
 
     @Override
     public List<String> getGroupNames() {
-        return Collections.unmodifiableList(new ArrayList<>(groupNames));
+        return List.copyOf(groupNames);
     }
 
     /**
@@ -346,7 +346,7 @@ public abstract class GenericItem implements ActiveItem {
 
     @Override
     public Set<String> getTags() {
-        return Collections.unmodifiableSet(new HashSet<>(tags));
+        return Set.copyOf(tags);
     }
 
     @Override

@@ -17,8 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.stream.Collectors;
+import java.util.List;
 import java.util.stream.Stream;
 import java.util.stream.Stream.Builder;
 
@@ -39,8 +38,7 @@ public class BitUtilitiesExtractStringTest {
     }
 
     public static Collection<Object[]> data() {
-        return Collections.unmodifiableList(Stream.of(
-                new Object[] { "", shortArrayToRegisterArray(0), 0, 0, StandardCharsets.UTF_8 },
+        return List.of(new Object[] { "", shortArrayToRegisterArray(0), 0, 0, StandardCharsets.UTF_8 },
                 new Object[] { "hello", shortArrayToRegisterArray(0x6865, 0x6c6c, 0x6f00), 0, 5,
                         StandardCharsets.UTF_8 },
                 new Object[] { "he", shortArrayToRegisterArray(0x6865, 0x6c6c, 0x6f00), 0, 2, StandardCharsets.UTF_8 }, // limited
@@ -76,8 +74,7 @@ public class BitUtilitiesExtractStringTest {
                         StandardCharsets.UTF_8 },
                 // out of bounds
                 new Object[] { IllegalArgumentException.class, shortArrayToRegisterArray(0, 0), 0, 5,
-                        StandardCharsets.UTF_8 })
-                .collect(Collectors.toList()));
+                        StandardCharsets.UTF_8 });
     }
 
     public static Stream<Object[]> dataWithByteVariations() {

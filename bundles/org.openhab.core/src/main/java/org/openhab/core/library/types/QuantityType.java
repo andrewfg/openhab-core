@@ -21,9 +21,10 @@ import java.text.ParsePosition;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.IllegalFormatConversionException;
 import java.util.Locale;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import javax.measure.Dimension;
 import javax.measure.IncommensurableException;
@@ -70,11 +71,11 @@ public class QuantityType<T extends Quantity<T>> extends Number
     public static final QuantityType<Dimensionless> ZERO = new QuantityType<>(0, AbstractUnit.ONE);
     public static final QuantityType<Dimensionless> ONE = new QuantityType<>(1, AbstractUnit.ONE);
 
-    // Regular expression to split unit from value
-    // split on any blank character, even none (\\s*) which occurs after a digit (?<=\\d) and before
-    // a "unit" character ?=[a-zA-Z°µ%'] which itself must not be preceded by plus/minus digit (?![\\+\\-]?\\d).
-    // The later would be an exponent from the scalar value.
-    private static final String UNIT_PATTERN = "(?<=\\d)\\s*(?=[a-zA-Z°µ%'](?![\\+\\-]?\\d))";
+    // Regular expression to split unit from value. Split on any blank character, or
+    // between a digit (?<=\\d) and a non-digit character (?=\\D)
+    // which must not be preceded by plus/minus digit (?![\\+\\-]?\\d).
+    // The latter would be an exponent from the scalar value.
+    private static final Pattern UNIT_PATTERN = Pattern.compile("\\s+|(?<=\\d)(?=\\D(?![+\\-]?\\d))");
 
     static {
         UnitInitializer.init();
@@ -117,15 +118,18 @@ public class QuantityType<T extends Quantity<T>> extends Number
      */
     @SuppressWarnings("unchecked")
     public QuantityType(String value, Locale locale) {
-        String[] constituents = value.split(UNIT_PATTERN);
+        String[] constituents = UNIT_PATTERN.split(value);
 
+        if (constituents.length > 0) {
+            constituents[0] = constituents[0].toUpperCase(locale);
+        }
         // getQuantity needs a space between numeric value and unit
         String formatted = String.join(" ", constituents);
         if (!formatted.contains(" ")) {
             DecimalFormat df = (DecimalFormat) NumberFormat.getInstance(locale);
             df.setParseBigDecimal(true);
             ParsePosition position = new ParsePosition(0);
-            BigDecimal parsedValue = (BigDecimal) df.parseObject(value, position);
+            BigDecimal parsedValue = (BigDecimal) df.parseObject(formatted, position);
             if (parsedValue == null || position.getErrorIndex() != -1 || position.getIndex() < value.length()) {
                 throw new NumberFormatException("Invalid BigDecimal value: " + value);
             }
@@ -177,10 +181,10 @@ public class QuantityType<T extends Quantity<T>> extends Number
     }
 
     /**
-     * Static access to {@link QuantityType#QuantityType(double, Unit)}.
+     * Static access to {@link QuantityType(double, Unit)}.
      *
-     * @param value the non null measurement value.
-     * @param unit the non null measurement unit.
+     * @param value the non-null measurement value.
+     * @param unit the non-null measurement unit.
      * @return a new {@link QuantityType}
      */
     public static <T extends Quantity<T>> QuantityType<T> valueOf(double value, Unit<T> unit) {
@@ -212,10 +216,9 @@ public class QuantityType<T extends Quantity<T>> extends Number
         if (obj == null) {
             return false;
         }
-        if (!(obj instanceof QuantityType)) {
+        if (!(obj instanceof QuantityType<?> other)) {
             return false;
         }
-        QuantityType<?> other = (QuantityType<?>) obj;
         if (!quantity.getUnit().isCompatible(other.quantity.getUnit())
                 && !quantity.getUnit().inverse().isCompatible(other.quantity.getUnit())) {
             return false;
@@ -294,7 +297,7 @@ public class QuantityType<T extends Quantity<T>> extends Number
      * change the dimension.
      *
      * @param targetUnit the unit to which this {@link QuantityType} will be converted to.
-     * @return the new {@link QuantityType} in the given {@link Unit} or {@code null} in case of an erro.
+     * @return the new {@link QuantityType} in the given {@link Unit} or {@code null} in case of an error.
      */
     public @Nullable QuantityType<?> toInvertibleUnit(Unit<?> targetUnit) {
         // only invert if unit is not equal and inverse is compatible and targetUnit is not ONE
@@ -317,7 +320,7 @@ public class QuantityType<T extends Quantity<T>> extends Number
     /**
      * Convert this QuantityType to a new {@link QuantityType} using the given target unit.
      *
-     * Similar to {@link toUnit}, except that it treats the values as relative instead of absolute.
+     * Similar to {@link #toUnit}, except that it treats the values as relative instead of absolute.
      * This means that any offsets in the conversion of absolute values are ignored.
      * This is useful when your quantity represents a delta, and not necessarily a measured
      * value itself. For example, 32 °F, when converted with toUnit to Celsius, it will become 0 °C.
@@ -336,6 +339,15 @@ public class QuantityType<T extends Quantity<T>> extends Number
         Quantity<?> result = quantity.to(targetUnit);
 
         return new QuantityType<>(result.getValue(), targetUnit);
+    }
+
+    public @Nullable QuantityType<T> toUnitRelative(String targetUnit) {
+        Unit<T> unit = (Unit<T>) AbstractUnit.parse(targetUnit);
+        if (unit != null) {
+            return toUnitRelative(unit);
+        }
+
+        return null;
     }
 
     public BigDecimal toBigDecimal() {
@@ -574,8 +586,7 @@ public class QuantityType<T extends Quantity<T>> extends Number
     public QuantityType<T> offset(QuantityType<T> offset, Unit<T> unit) {
         Quantity<T> quantity = Quantities.getQuantity(this.quantity.getValue(), this.quantity.getUnit(),
                 Scale.ABSOLUTE);
-        final Quantity<T> sum = Arrays.asList(quantity, offset.quantity).stream().reduce(QuantityFunctions.sum(unit))
-                .get();
+        final Quantity<T> sum = Stream.of(quantity, offset.quantity).reduce(QuantityFunctions.sum(unit)).get();
         return new QuantityType<>(sum);
     }
 

@@ -13,13 +13,11 @@
 package org.openhab.core.model.thing.internal;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -118,7 +116,7 @@ public class GenericItemChannelLinkProvider extends AbstractProvider<ItemChannel
             logger.warn("There already is an update transaction for generic item channel links. Continuing anyway.");
         }
         Set<String> previous = contextMap.get(context);
-        previousItemNames = previous != null ? new HashSet<>(previous) : Collections.emptySet();
+        previousItemNames = previous != null ? new HashSet<>(previous) : new HashSet<>();
     }
 
     @Override
@@ -142,6 +140,6 @@ public class GenericItemChannelLinkProvider extends AbstractProvider<ItemChannel
 
     @Override
     public Collection<ItemChannelLink> getAll() {
-        return itemChannelLinkMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+        return itemChannelLinkMap.values().stream().flatMap(Collection::stream).toList();
     }
 }
