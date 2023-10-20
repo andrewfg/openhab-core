@@ -13,11 +13,13 @@
 package org.openhab.core.addon.internal.xml;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.core.addon.AddonDiscoveryMethod;
 import org.openhab.core.addon.AddonInfo;
 import org.openhab.core.config.core.ConfigDescription;
 import org.openhab.core.config.core.ConfigDescriptionBuilder;
@@ -106,6 +108,22 @@ public class AddonInfoConverter extends GenericUnmarshaller<AddonInfoXmlResult> 
         }
 
         addonInfo.withConfigDescriptionURI(configDescriptionURI);
+
+        List<AddonDiscoveryMethod> discoveryMethods = null;
+        while (true) {
+            Object value = nodeIterator.nextValue("discovery-method", false);
+            if (value instanceof AddonDiscoveryMethod discoveryMethod) {
+                if (discoveryMethods == null) {
+                    discoveryMethods = new ArrayList<>();
+                }
+                discoveryMethods.add(discoveryMethod);
+            } else {
+                break;
+            }
+        }
+        if (discoveryMethods != null) {
+            addonInfo.withDiscoveryMethods(discoveryMethods);
+        }
 
         nodeIterator.assertEndOfType();
 

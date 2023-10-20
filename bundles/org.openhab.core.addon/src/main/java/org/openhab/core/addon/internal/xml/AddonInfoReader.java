@@ -15,6 +15,8 @@ package org.openhab.core.addon.internal.xml;
 import java.util.List;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.openhab.core.addon.AddonDiscoveryMethod;
+import org.openhab.core.addon.AddonMatchProperty;
 import org.openhab.core.config.core.ConfigDescription;
 import org.openhab.core.config.core.ConfigDescriptionParameter;
 import org.openhab.core.config.core.ConfigDescriptionParameterGroup;
@@ -84,5 +86,9 @@ public class AddonInfoReader extends XmlDocumentReader<AddonInfoXmlResult> {
         xstream.alias("filter", List.class);
         xstream.alias("criteria", FilterCriteria.class);
         xstream.alias("service-id", NodeValue.class);
+        xstream.alias("service-type", NodeValue.class);
+        xstream.alias("mdns-service-type", NodeValue.class);
+        xstream.alias("discovery-method", AddonDiscoveryMethod.class);
+        xstream.alias("match-property", AddonMatchProperty.class);
     }
 }
