@@ -12,15 +12,27 @@
  */
 package org.openhab.core.addon;
 
+import java.util.List;
+
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 
 /**
- * Enum of different supported discovery types.
+ * DTO containing a list of {@code AddonInfo}
  *
  * @author Andrew Fiddian-Green - Initial contribution
  */
 @NonNullByDefault
-public enum AddonDiscoveryServiceType {
-    MDNS,
-    UPNP
+public class AddonInfoList {
+    protected @Nullable List<AddonInfo> addons;
+
+    public List<AddonInfo> getAddons() {
+        List<AddonInfo> addons = this.addons;
+        return addons != null ? addons : List.of();
+    }
+
+    public AddonInfoList setAddons(@Nullable List<AddonInfo> addons) {
+        this.addons = addons;
+        return this;
+    }
 }

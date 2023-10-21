@@ -13,7 +13,6 @@
 package org.openhab.core.addon.internal.xml;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +38,7 @@ import com.thoughtworks.xstream.io.HierarchicalStreamReader;
  * @author Michael Grammling - Initial contribution
  * @author Andre Fuechsel - Made author tag optional
  * @author Jan N. Klug - Refactored to cover all add-ons
+ * @author Andrew Fiddian-Green - Added discovery methods
  */
 @NonNullByDefault
 public class AddonInfoConverter extends GenericUnmarshaller<AddonInfoXmlResult> {
@@ -109,21 +109,10 @@ public class AddonInfoConverter extends GenericUnmarshaller<AddonInfoXmlResult> 
 
         addonInfo.withConfigDescriptionURI(configDescriptionURI);
 
-        List<AddonDiscoveryMethod> discoveryMethods = null;
-        while (true) {
-            Object value = nodeIterator.nextValue("discovery-method", false);
-            if (value instanceof AddonDiscoveryMethod discoveryMethod) {
-                if (discoveryMethods == null) {
-                    discoveryMethods = new ArrayList<>();
-                }
-                discoveryMethods.add(discoveryMethod);
-            } else {
-                break;
-            }
-        }
-        if (discoveryMethods != null) {
-            addonInfo.withDiscoveryMethods(discoveryMethods);
-        }
+        Object object = nodeIterator.nextList("discovery-methods", false);
+        addonInfo.withDiscoveryMethods(!(object instanceof List<?> list) ? null
+                : list.stream().filter(e -> (e instanceof AddonDiscoveryMethod)).map(e -> ((AddonDiscoveryMethod) e))
+                        .toList());
 
         nodeIterator.assertEndOfType();
 
