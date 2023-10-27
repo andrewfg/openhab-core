@@ -14,12 +14,11 @@ package org.openhab.core.addon;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -52,79 +51,75 @@ public class AddonInfoRegistry {
     }
 
     /**
-     * Returns the add-on information for the specified add-on ID, or {@code null} if no add-on information could be
+     * Returns the add-on information for the specified add-on UID, or {@code null} if no add-on information could be
      * found.
      *
-     * @param id the ID to be looked
+     * @param uid the UID to be looked
      * @return a add-on information object (could be null)
      */
-    public @Nullable AddonInfo getAddonInfo(String id) {
-        return getAddonInfo(id, null);
+    public @Nullable AddonInfo getAddonInfo(String uid) {
+        return getAddonInfo(uid, null);
     }
 
     /**
-     * Returns the add-on information for the specified add-on ID and locale (language),
+     * Returns the add-on information for the specified add-on UID and locale (language),
      * or {@code null} if no add-on information could be found.
      * <p>
-     * If more than one provider provides information for the specified add-on ID and locale,
-     * it returns merged information from all such providers.
+     * If more than one provider provides information for the specified add-on UID and locale,
+     * it returns a new {@link AddonInfo} containing merged information from all such providers.
      *
-     * @param targetId the ID to be looked for
+     * @param uid the UID to be looked for
      * @param locale the locale to be used for the add-on information (could be null)
      * @return a localized add-on information object (could be null)
      */
-    public @Nullable AddonInfo getAddonInfo(String targetId, @Nullable Locale locale) {
-        // note: using funky code to prevent a maven compiler error
-        List<AddonInfo> addonInfos = addonInfoProviders.stream()
-                .map(p -> Optional.ofNullable(p.getAddonInfo(targetId, locale))).filter(o -> o.isPresent())
-                .map(o -> o.get()).toList();
-
-        // one or zero entries
-        switch (addonInfos.size()) {
-            case 0:
-                return null;
-            case 1:
-                return addonInfos.get(0);
-            default:
-                // fall through
-        }
-
-        // multiple entries
-        String id = null;
-        String type = null;
-        String uid = null;
-        String name = null;
-        String description = null;
-        String connection = null;
-        String configDescriptionURI = null;
-        String serviceId = null;
-        String sourceBundle = null;
-        List<AddonDiscoveryMethod> discoveryMethods = List.of();
-        Set<String> countries = new HashSet<>();
-
-        for (AddonInfo addonInfo : addonInfos) {
-            // unique fields: take first non null value
-            id = id != null ? id : addonInfo.getId();
-            type = type != null ? type : addonInfo.getType();
-            uid = uid != null ? uid : addonInfo.getUID();
-            name = name != null ? name : addonInfo.getName();
-            description = description != null ? description : addonInfo.getDescription();
-            connection = connection != null ? connection : addonInfo.getConnection();
-            configDescriptionURI = configDescriptionURI != null ? configDescriptionURI
-                    : addonInfo.getConfigDescriptionURI();
-            serviceId = serviceId != null ? serviceId : addonInfo.getServiceId();
-            sourceBundle = sourceBundle != null ? sourceBundle : addonInfo.getSourceBundle();
-            discoveryMethods = !discoveryMethods.isEmpty() ? discoveryMethods : addonInfo.getDiscoveryMethods();
-            // list field: uniquely combine via a set
-            countries.addAll(addonInfo.getCountries());
-        }
-
-        return AddonInfo.builder(Objects.requireNonNull(id), Objects.requireNonNull(type))
-                .withUID(Objects.requireNonNull(uid)).withName(Objects.requireNonNull(name))
-                .withDescription(Objects.requireNonNull(description)).withConnection(connection)
-                .withCountries(countries.stream().toList()).withConfigDescriptionURI(configDescriptionURI)
-                .withServiceId(serviceId).withSourceBundle(sourceBundle).withDiscoveryMethods(discoveryMethods).build();
+    public @Nullable AddonInfo getAddonInfo(String uid, @Nullable Locale locale) {
+        return addonInfoProviders.stream().map(p -> p.getAddonInfo(uid, locale))
+                .collect(Collectors.groupingBy(a -> a == null ? "" : a.getUID(),
+                        Collectors.collectingAndThen(Collectors.reducing(mergeAddonInfos), Optional::get)))
+                .get(uid);
     }
+
+    /**
+     * A {@link BinaryOperator} to merge the field values from two {@link AddonInfo} objects into a third such object.
+     * <p>
+     * If the first object has a non-null field value the result object takes the first value, or if the second object
+     * has a non-null field value the result object takes the second value. Otherwise the field remains null.
+     * 
+     * @param a the first {@link AddonInfo} (could be null)
+     * @param b the second {@link AddonInfo} (could be null)
+     * @return a new {@link AddonInfo} containing the combined field values (could be null)
+     */
+    private static BinaryOperator<@Nullable AddonInfo> mergeAddonInfos = (a, b) -> {
+        if (a == null) {
+            return b;
+        } else if (b == null) {
+            return a;
+        }
+        AddonInfo.Builder builder = AddonInfo.builder(a);
+        if (a.getDescription().isEmpty()) {
+            builder.withDescription(b.getDescription());
+        }
+        if (a.getConnection() == null && b.getConnection() != null) {
+            builder.withConnection(b.getConnection());
+        }
+        Set<String> countries = new HashSet<>(a.getCountries());
+        countries.addAll(b.getCountries());
+        if (!countries.isEmpty()) {
+            builder.withCountries(countries.stream().toList());
+        }
+        if (a.getConfigDescriptionURI() == null && b.getConfigDescriptionURI() != null) {
+            builder.withConfigDescriptionURI(b.getConfigDescriptionURI());
+        }
+        if (a.getSourceBundle() == null && b.getSourceBundle() != null) {
+            builder.withSourceBundle(b.getSourceBundle());
+        }
+        Set<AddonDiscoveryMethod> discoveryMethods = new HashSet<>(a.getDiscoveryMethods());
+        discoveryMethods.addAll(b.getDiscoveryMethods());
+        if (!discoveryMethods.isEmpty()) {
+            builder.withDiscoveryMethods(discoveryMethods.stream().toList());
+        }
+        return builder.build();
+    };
 
     /**
      * Returns all add-on information this registry contains.
