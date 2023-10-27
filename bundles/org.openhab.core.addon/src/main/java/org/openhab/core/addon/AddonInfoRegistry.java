@@ -43,11 +43,11 @@ public class AddonInfoRegistry {
     private final Collection<AddonInfoProvider> addonInfoProviders = new CopyOnWriteArrayList<>();
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
-    protected void addAddonInfoProvider(AddonInfoProvider addonInfoProvider) {
+    public void addAddonInfoProvider(AddonInfoProvider addonInfoProvider) {
         addonInfoProviders.add(addonInfoProvider);
     }
 
-    protected void removeAddonInfoProvider(AddonInfoProvider addonInfoProvider) {
+    public void removeAddonInfoProvider(AddonInfoProvider addonInfoProvider) {
         addonInfoProviders.remove(addonInfoProvider);
     }
 
@@ -108,7 +108,8 @@ public class AddonInfoRegistry {
         if (!countries.isEmpty()) {
             builder.withCountries(countries.stream().toList());
         }
-        if (a.getConfigDescriptionURI() == null && b.getConfigDescriptionURI() != null) {
+        String aConfigDescriptionURI = a.getConfigDescriptionURI();
+        if (aConfigDescriptionURI == null || aConfigDescriptionURI.isEmpty() && b.getConfigDescriptionURI() != null) {
             builder.withConfigDescriptionURI(b.getConfigDescriptionURI());
         }
         if (a.getSourceBundle() == null && b.getSourceBundle() != null) {
