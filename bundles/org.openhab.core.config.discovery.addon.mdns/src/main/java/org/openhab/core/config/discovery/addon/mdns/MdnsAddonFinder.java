@@ -10,7 +10,9 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.core.config.discovery.addon.finders;
+package org.openhab.core.config.discovery.addon.mdns;
+
+import static org.openhab.core.config.discovery.addon.AddonFinderConstants.*;
 
 import java.util.HashSet;
 import java.util.List;
@@ -30,58 +32,58 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.addon.AddonDiscoveryMethod;
 import org.openhab.core.addon.AddonInfo;
 import org.openhab.core.common.ThreadPoolManager;
+import org.openhab.core.config.discovery.addon.AddonFinder;
+import org.openhab.core.config.discovery.addon.BaseAddonFinder;
 import org.openhab.core.io.transport.mdns.MDNSClient;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This is a {@link MDNSAddonSuggestionFinder} for finding suggested Addons via MDNS.
+ * This is a {@link MdnsAddonFinder} for finding suggested Addons via MDNS.
  *
  * @author Andrew Fiddian-Green - Initial contribution
+ * @author Mark Herwege - refactor to allow uninstall
  */
 @NonNullByDefault
-@Component(service = AddonSuggestionFinder.class, name = MDNSAddonSuggestionFinder.SERVICE_NAME, configurationPid = MDNSAddonSuggestionFinder.CONFIG_PID)
-public class MDNSAddonSuggestionFinder extends BaseAddonSuggestionFinder implements ServiceListener {
+@Component(service = AddonFinder.class, name = MdnsAddonFinder.SERVICE_NAME)
+public class MdnsAddonFinder extends BaseAddonFinder implements ServiceListener {
 
-    public static final String SERVICE_TYPE = "mdns";
-    public static final String SERVICE_NAME = SERVICE_TYPE + ADDON_SUGGESTION_FINDER;
-    public static final String CONFIG_PID = ADDON_SUGGESTION_FINDER_CONFIG_PID + SERVICE_TYPE;
+    public static final String SERVICE_TYPE = SERVICE_TYPE_MDNS;
+    public static final String SERVICE_NAME = SERVICE_NAME_MDNS;
 
     private static final String NAME = "name";
     private static final String APPLICATION = "application";
 
-    private final Logger logger = LoggerFactory.getLogger(MDNSAddonSuggestionFinder.class);
+    private final Logger logger = LoggerFactory.getLogger(MdnsAddonFinder.class);
     private final ScheduledExecutorService scheduler = ThreadPoolManager.getScheduledPool(SERVICE_NAME);
     private final Map<String, ServiceInfo> services = new ConcurrentHashMap<>();
-    private final MDNSClient mdnsClient;
+    private MDNSClient mdnsClient;
 
     @Activate
-    public MDNSAddonSuggestionFinder(@Nullable Map<String, Object> configProperties, @Reference MDNSClient mdnsClient) {
+    public MdnsAddonFinder(@Reference MDNSClient mdnsClient) {
         this.mdnsClient = mdnsClient;
-        activate(configProperties);
     }
 
-    /**
-     * Adds the given mDNS service to the set of discovered services.
-     * 
-     * @param device the mDNS service to be added.
-     */
-    public void addService(ServiceInfo service, boolean isResolved) {
-        String qualifiedName = service.getQualifiedName();
-        if (isResolved || !services.containsKey(qualifiedName)) {
-            if (services.put(qualifiedName, service) == null) {
-                logger.trace("Added service: {}/{}", qualifiedName, service.getNiceTextString());
-            }
-        }
+    @Deactivate
+    public void deactivate() {
+        services.clear();
+        unsetAddonCandidates();
     }
 
     @Override
-    protected void connect() {
+    public void setAddonCandidates(List<AddonInfo> candidates) {
+        // Remove listeners for all service types that are no longer in candidates
+        addonCandidates.stream().filter(c -> !candidates.contains(c))
+                .forEach(c -> c.getDiscoveryMethods().stream().filter(m -> SERVICE_TYPE.equals(m.getServiceType()))
+                        .filter(m -> !m.getMdnsServiceType().isEmpty())
+                        .forEach(m -> mdnsClient.removeServiceListener(m.getMdnsServiceType(), this)));
+
+        // Add listeners for all service types in candidates
+        super.setAddonCandidates(candidates);
         addonCandidates
                 .forEach(c -> c.getDiscoveryMethods().stream().filter(m -> SERVICE_TYPE.equals(m.getServiceType()))
                         .filter(m -> !m.getMdnsServiceType().isEmpty()).forEach(m -> {
@@ -89,22 +91,28 @@ public class MDNSAddonSuggestionFinder extends BaseAddonSuggestionFinder impleme
                             mdnsClient.addServiceListener(serviceType, this);
                             scheduler.submit(() -> mdnsClient.list(serviceType));
                         }));
-        super.connect();
-    }
-
-    @Deactivate
-    @Override
-    public void deactivate() {
-        super.deactivate();
-        services.clear();
     }
 
     @Override
-    protected void disconnect() {
+    public void unsetAddonCandidates() {
         addonCandidates.forEach(c -> c.getDiscoveryMethods().stream()
                 .filter(m -> SERVICE_TYPE.equals(m.getServiceType())).filter(m -> !m.getMdnsServiceType().isEmpty())
                 .forEach(m -> mdnsClient.removeServiceListener(m.getMdnsServiceType(), this)));
-        super.disconnect();
+        super.unsetAddonCandidates();
+    }
+
+    /**
+     * Adds the given mDNS service to the set of discovered services.
+     *
+     * @param device the mDNS service to be added.
+     */
+    public void addService(ServiceInfo service, boolean isResolved) {
+        String qualifiedName = service.getQualifiedName();
+        if (isResolved || !services.containsKey(qualifiedName)) {
+            if (services.put(qualifiedName, service) == null) {
+                logger.trace("Added service: {}", qualifiedName);
+            }
+        }
     }
 
     @Override
@@ -139,10 +147,9 @@ public class MDNSAddonSuggestionFinder extends BaseAddonSuggestionFinder impleme
         return result;
     }
 
-    @Modified
     @Override
-    public void modified(@Nullable Map<String, Object> configProperties) {
-        super.modified(configProperties);
+    public String getServiceName() {
+        return SERVICE_NAME;
     }
 
     /*
@@ -171,12 +178,5 @@ public class MDNSAddonSuggestionFinder extends BaseAddonSuggestionFinder impleme
                 addService(service, true);
             }
         }
-    }
-
-    @Override
-    public void setAddonCandidates(List<AddonInfo> candidates) {
-        disconnect();
-        super.setAddonCandidates(candidates);
-        connect();
     }
 }
