@@ -28,7 +28,6 @@ import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.text.ParseException;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
@@ -36,10 +35,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -54,6 +54,7 @@ import org.openhab.core.common.ThreadPoolManager;
 import org.openhab.core.config.discovery.addon.AddonFinder;
 import org.openhab.core.config.discovery.addon.BaseAddonFinder;
 import org.openhab.core.net.NetUtil;
+import org.openhab.core.util.StringUtils;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
@@ -100,9 +101,30 @@ import org.slf4j.LoggerFactory;
  * <td></td>
  * </tr>
  * <tr>
+ * <td>{@code listenPort}</td>
+ * <td>port to use for listening to responses (optional)</td>
+ * <td>privileged ports ({@code <1024}) not allowed</td>
+ * </tr>
+ * <tr>
  * <td>{@code request}</td>
  * <td>description of request frame as hex bytes separated by spaces (e.g. 0x01 0x02 ...)</td>
- * <td>dynamic replacement of variables $srcIp and $srcPort, no others implemented yet
+ * <td>dynamic replacement of variables $srcIp, $srcPort and $uuid, no others implemented yet
+ * </tr>
+ * <tr>
+ * <td>{@code requestPlain}</td>
+ * <td>description of request frame as plaintext string</td>
+ * <td>dynamic replacement of variables $srcIp, $srcPort and $uuid, no others implemented yet;
+ * there are five XML special characters which need to be escaped:
+ *
+ * <pre>
+ * {@code
+ * & - &amp;
+ * < - &lt;
+ * > - &gt;
+ * " - &quot;
+ * ' - &apos;
+ * }
+ * </pre>
  * </tr>
  * <tr>
  * <td>{@code timeoutMs}</td>
@@ -111,7 +133,25 @@ import org.slf4j.LoggerFactory;
  * </tr>
  * </table>
  * <p>
- * Packets are sent out on ever available network interface.
+ * <table border="1">
+ * <tr>
+ * <td><b>dynamic replacement</b> (in {@code request*})</td>
+ * <td><b>value</b></td>
+ * </tr>
+ * <tr>
+ * <td>{@code $srcIp}</td>
+ * <td>source IP address</td>
+ * </tr>
+ * <tr>
+ * <td>{@code $srcPort}</td>
+ * <td>source port</td>
+ * </tr>
+ * <td>{@code $uuid}</td>
+ * <td>String returned by {@code java.util.UUID.randomUUID()}</td>
+ * </tr>
+ * </table>
+ * <p>
+ * Packets are sent out on every available network interface.
  * <p>
  * There is currently only one match-property defined: {@code response}.
  * It allows a regex match, but currently only ".*" is supported.
@@ -146,17 +186,20 @@ public class IpAddonFinder extends BaseAddonFinder {
     private static final String MATCH_PROPERTY_RESPONSE = "response";
     private static final String PARAMETER_DEST_IP = "destIp";
     private static final String PARAMETER_DEST_PORT = "destPort";
+    private static final String PARAMETER_LISTEN_PORT = "listenPort";
     private static final String PARAMETER_REQUEST = "request";
+    private static final String PARAMETER_REQUEST_PLAIN = "requestPlain";
     private static final String PARAMETER_SRC_IP = "srcIp";
     private static final String PARAMETER_SRC_PORT = "srcPort";
     private static final String PARAMETER_TIMEOUT_MS = "timeoutMs";
+    private static final String REPLACEMENT_UUID = "uuid";
 
     private final Logger logger = LoggerFactory.getLogger(IpAddonFinder.class);
     private final ScheduledExecutorService scheduler = ThreadPoolManager
             .getScheduledPool(ThreadPoolManager.THREAD_POOL_NAME_COMMON);
     private final Set<AddonService> addonServices = new CopyOnWriteArraySet<>();
-    private @Nullable Future<?> scanJob = null;
-    Set<AddonInfo> suggestions = new HashSet<>();
+    private final List<CompletableFuture<?>> scanJobs = new CopyOnWriteArrayList<>();
+    private final Set<AddonInfo> suggestions = new CopyOnWriteArraySet<>();
 
     public IpAddonFinder() {
         logger.trace("IpAddonFinder::IpAddonFinder");
@@ -166,14 +209,15 @@ public class IpAddonFinder extends BaseAddonFinder {
     @Deactivate
     public void deactivate() {
         logger.trace("IpAddonFinder::deactivate");
-        stopScan();
+        stopScanJobs();
     }
 
     @Override
     public void setAddonCandidates(List<AddonInfo> candidates) {
         logger.debug("IpAddonFinder::setAddonCandidates({})", candidates.size());
         super.setAddonCandidates(candidates);
-        startScan();
+        stopScanJobs();
+        startScanJobs();
     }
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
@@ -185,33 +229,15 @@ public class IpAddonFinder extends BaseAddonFinder {
         this.addonServices.remove(featureService);
     }
 
-    private void startScan() {
-        // The setAddonCandidates() method is called for each info provider.
-        // In order to do the scan only once, but on the full set of candidates, we have to delay the execution.
-        // At the same time we must make sure that a scheduled scan is rescheduled - or (after more than our delay) is
-        // executed once more.
-        stopScan();
-        scanJob = scheduler.schedule(this::scan, 20, TimeUnit.SECONDS);
+    private synchronized void stopScanJobs() {
+        scanJobs.stream().filter(j -> !j.isDone()).forEach(j -> j.cancel(true));
+        scanJobs.clear();
     }
 
-    private void stopScan() {
-        Future<?> tmpScanJob = scanJob;
-        if (tmpScanJob != null) {
-            if (!tmpScanJob.isDone()) {
-                logger.trace("Trying to cancel IP scan");
-                tmpScanJob.cancel(true);
-            }
-            scanJob = null;
-        }
-    }
-
-    private void scan() {
-        logger.trace("IpAddonFinder::scan started");
+    private synchronized void startScanJobs() {
         for (AddonInfo candidate : addonCandidates) {
             for (AddonDiscoveryMethod method : candidate.getDiscoveryMethods().stream()
                     .filter(method -> SERVICE_TYPE.equals(method.getServiceType())).toList()) {
-
-                logger.trace("Checking candidate: {}", candidate.getUID());
 
                 // skip scanning if already installed
                 if (isAddonInstalled(candidate.getUID())) {
@@ -227,6 +253,13 @@ public class IpAddonFinder extends BaseAddonFinder {
                 // parse standard set of parameters
                 String type = Objects.toString(parameters.get("type"), "");
                 String request = Objects.toString(parameters.get(PARAMETER_REQUEST), "");
+                String requestPlain = Objects.toString(parameters.get(PARAMETER_REQUEST_PLAIN), "");
+                // xor
+                if (!("".equals(request) ^ "".equals(requestPlain))) {
+                    logger.warn("{}: discovery-parameter '{}' or '{}' required", candidate.getUID(), PARAMETER_REQUEST,
+                            PARAMETER_REQUEST_PLAIN);
+                    continue;
+                }
                 String response = Objects.toString(matchProperties.get(MATCH_PROPERTY_RESPONSE), "");
                 int timeoutMs;
                 try {
@@ -252,76 +285,125 @@ public class IpAddonFinder extends BaseAddonFinder {
                             PARAMETER_DEST_PORT);
                     continue;
                 }
+                int testListenPort = 0; // default, pick a non-privileged port
+                if (parameters.get(PARAMETER_LISTEN_PORT) != null) {
+                    try {
+                        testListenPort = Integer.parseInt(Objects.toString(parameters.get(PARAMETER_LISTEN_PORT)));
+                    } catch (NumberFormatException e) {
+                        logger.warn("{}: discovery-parameter '{}' cannot be parsed", candidate.getUID(),
+                                PARAMETER_LISTEN_PORT);
+                        continue;
+                    }
+                    // do not allow privileged ports
+                    if (testListenPort < 1024) {
+                        logger.warn("{}: discovery-parameter '{}' not allowed, privileged port", candidate.getUID(),
+                                PARAMETER_LISTEN_PORT);
+                        continue;
+                    }
+                }
+                int listenPort = testListenPort;
 
                 // handle known types
-                try {
-                    switch (Objects.toString(type)) {
-                        case TYPE_IP_MULTICAST:
-                            List<String> ipAddresses = NetUtil.getAllInterfaceAddresses().stream()
-                                    .filter(a -> a.getAddress() instanceof Inet4Address)
-                                    .map(a -> a.getAddress().getHostAddress()).toList();
+                switch (Objects.toString(type)) {
+                    case TYPE_IP_MULTICAST:
+                        List<String> ipAddresses = NetUtil.getAllInterfaceAddresses().stream()
+                                .filter(a -> a.getAddress() instanceof Inet4Address)
+                                .map(a -> a.getAddress().getHostAddress()).toList();
 
-                            for (String localIp : ipAddresses) {
-                                try {
-                                    DatagramChannel channel = (DatagramChannel) DatagramChannel
-                                            .open(StandardProtocolFamily.INET)
-                                            .setOption(StandardSocketOptions.SO_REUSEADDR, true)
-                                            .bind(new InetSocketAddress(localIp, 0))
-                                            .setOption(StandardSocketOptions.IP_MULTICAST_TTL, 64)
-                                            .configureBlocking(false);
+                        for (String localIp : ipAddresses) {
+                            logger.trace("Scheduling scan for candidate:{}", candidate.getUID());
+                            scanJobs.add(
+                                    CompletableFuture
+                                            .runAsync(
+                                                    () -> doIpMulticastScan(candidate, type, request, requestPlain,
+                                                            response, timeoutMs, destIp, destPort, listenPort, localIp),
+                                                    scheduler));
+                        }
+                        break;
 
-                                    byte[] requestArray = buildRequestArray(channel, Objects.toString(request));
-                                    if (logger.isTraceEnabled()) {
-                                        logger.trace("{}: {}", candidate.getUID(),
-                                                HexFormat.of().withDelimiter(" ").formatHex(requestArray));
-                                    }
-
-                                    channel.send(ByteBuffer.wrap(requestArray),
-                                            new InetSocketAddress(destIp, destPort));
-
-                                    // listen to responses
-                                    Selector selector = Selector.open();
-                                    ByteBuffer buffer = ByteBuffer.wrap(new byte[50]);
-                                    channel.register(selector, SelectionKey.OP_READ);
-                                    selector.select(timeoutMs);
-                                    Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-
-                                    switch (Objects.toString(response)) {
-                                        case ".*":
-                                            if (it.hasNext()) {
-                                                final SocketAddress source = ((DatagramChannel) it.next().channel())
-                                                        .receive(buffer);
-                                                logger.debug("Received return frame from {}",
-                                                        ((InetSocketAddress) source).getAddress().getHostAddress());
-                                                suggestions.add(candidate);
-                                                logger.debug("Suggested add-on found: {}", candidate.getUID());
-                                            } else {
-                                                logger.trace("{}: no response", candidate.getUID());
-                                            }
-                                            break;
-                                        default:
-                                            logger.warn("{}: match-property response \"{}\" is unknown",
-                                                    candidate.getUID(), type);
-                                            break; // end loop
-                                    }
-
-                                } catch (IOException e) {
-                                    logger.debug("{}: network error", candidate.getUID(), e);
-                                }
-                            }
-                            break;
-
-                        default:
-                            logger.warn("{}: discovery-parameter type \"{}\" is unknown", candidate.getUID(), type);
-                    }
-                } catch (ParseException | NumberFormatException none) {
-                    continue;
+                    default:
+                        logger.warn("{}: discovery-parameter type '{}' is unknown", candidate.getUID(), type);
                 }
             }
         }
-        logger.trace("IpAddonFinder::scan completed");
     }
 
+    private void doIpMulticastScan(AddonInfo candidate, String type, String request, String requestPlain,
+            String response, int timeoutMs, InetAddress destIp, int destPort, int listenPort, String localIp) {
+        try (DatagramChannel channel = (DatagramChannel) DatagramChannel.open(StandardProtocolFamily.INET)
+                .setOption(StandardSocketOptions.SO_REUSEADDR, true).bind(new InetSocketAddress(localIp, listenPort))
+                .setOption(StandardSocketOptions.IP_MULTICAST_TTL, 64).configureBlocking(false);
+                Selector selector = Selector.open()) {
+            byte[] requestArray = "".equals(requestPlain) ? buildRequestArray(channel, Objects.toString(request))
+                    : buildRequestArrayPlain(channel, Objects.toString(requestPlain));
+            if (logger.isTraceEnabled()) {
+                InetSocketAddress sock = (InetSocketAddress) channel.getLocalAddress();
+                String id = candidate.getUID();
+                logger.trace("{}: probing {} -> {}:{}", id, localIp, destIp != null ? destIp.getHostAddress() : "",
+                        destPort);
+                if (!"".equals(requestPlain)) {
+                    logger.trace("{}: \'{}\'", id, new String(requestArray));
+                }
+                logger.trace("{}: {}", id, HexFormat.of().withDelimiter(" ").formatHex(requestArray));
+                logger.trace("{}: listening on {}:{} for {} ms", id, sock.getAddress().getHostAddress(), sock.getPort(),
+                        timeoutMs);
+            }
+
+            channel.send(ByteBuffer.wrap(requestArray), new InetSocketAddress(destIp, destPort));
+
+            // listen to responses
+            ByteBuffer buffer = ByteBuffer.wrap(new byte[50]);
+            channel.register(selector, SelectionKey.OP_READ);
+            selector.select(timeoutMs);
+            Iterator<SelectionKey> it = selector.selectedKeys().iterator();
+
+            switch (Objects.toString(response)) {
+                case ".*":
+                    if (it.hasNext()) {
+                        final SocketAddress source = ((DatagramChannel) it.next().channel()).receive(buffer);
+                        logger.debug("Received return frame from {}",
+                                ((InetSocketAddress) source).getAddress().getHostAddress());
+                        suggestions.add(candidate);
+                        logger.debug("Suggested add-on found: {}", candidate.getUID());
+                    } else {
+                        logger.trace("{}: no response received on {}", candidate.getUID(), localIp);
+                    }
+                    break;
+                default:
+                    logger.warn("{}: match-property response '{}' is unknown", candidate.getUID(), type);
+                    break; // end loop
+            }
+        } catch (IOException e) {
+            logger.debug("{}: network error", candidate.getUID(), e);
+        } catch (ParseException e) {
+            logger.debug("{}: parsing error", candidate.getUID(), e);
+        }
+    }
+
+    // build from plaintext string
+    private byte[] buildRequestArrayPlain(DatagramChannel channel, String request)
+            throws java.io.IOException, ParseException {
+        InetSocketAddress sock = (InetSocketAddress) channel.getLocalAddress();
+
+        // replace first
+        StringBuilder req = new StringBuilder(request);
+        int p;
+        while ((p = req.indexOf("$" + PARAMETER_SRC_IP)) != -1) {
+            req.replace(p, p + PARAMETER_SRC_IP.length() + 1, sock.getAddress().getHostAddress());
+        }
+        while ((p = req.indexOf("$" + PARAMETER_SRC_PORT)) != -1) {
+            req.replace(p, p + PARAMETER_SRC_PORT.length() + 1, "" + sock.getPort());
+        }
+        while ((p = req.indexOf("$" + REPLACEMENT_UUID)) != -1) {
+            req.replace(p, p + REPLACEMENT_UUID.length() + 1, UUID.randomUUID().toString());
+        }
+
+        @Nullable
+        String reqUnEscaped = StringUtils.unEscapeXml(req.toString());
+        return reqUnEscaped != null ? reqUnEscaped.getBytes() : new byte[0];
+    }
+
+    // build from hex string
     private byte[] buildRequestArray(DatagramChannel channel, String request)
             throws java.io.IOException, ParseException {
         InetSocketAddress sock = (InetSocketAddress) channel.getLocalAddress();
@@ -341,6 +423,10 @@ public class IpAddonFinder extends BaseAddonFinder {
                         int dPort = sock.getPort();
                         requestFrame.write((byte) ((dPort >> 8) & 0xff));
                         requestFrame.write((byte) (dPort & 0xff));
+                        break;
+                    case "$" + REPLACEMENT_UUID:
+                        String uuid = UUID.randomUUID().toString();
+                        requestFrame.write(uuid.getBytes());
                         break;
                     default:
                         logger.warn("Unknown token in request frame \"{}\"", token);
