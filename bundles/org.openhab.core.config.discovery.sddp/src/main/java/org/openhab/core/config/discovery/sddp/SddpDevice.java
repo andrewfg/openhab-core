@@ -131,7 +131,7 @@ public class SddpDevice {
 
         String[] hostParts = host.split("-|_");
         macAddress = hostParts.length <= 1 ? ""
-                : hostParts[hostParts.length - 1].replaceAll("(..)(?!$)", "$1-").toLowerCase();
+                : hostParts[hostParts.length - 1].replaceAll("[-:]", "").replaceAll("(..)(?!$)", "$1-").toLowerCase();
 
         expireInstant = offline ? Instant.now().minusMillis(1)
                 : Instant.now().plusSeconds(maxAge.isBlank() ? 0 : Integer.parseInt(maxAge));

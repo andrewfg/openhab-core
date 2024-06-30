@@ -54,6 +54,19 @@ public class SddpDiscoveryServiceTests {
             Driver: "projector_JVCKENWOOD_DLA-RS3100_NZ8.c4i"
             """;
 
+    private static final String ALIVE_NOTIFICATION_MAC_DELIMITED = """
+            NOTIFY ALIVE SDDP/1.0
+            From: "192.168.4.237:1902"
+            Host: "JVC_PROJECTOR-E0:DA:DC:15:28:02"
+            Max-Age: 1800
+            Type: "JVCKENWOOD:Projector"
+            Primary-Proxy: "projector"
+            Proxies: "projector"
+            Manufacturer: "JVCKENWOOD"
+            Model: "DLA-RS3100_NZ8"
+            Driver: "projector_JVCKENWOOD_DLA-RS3100_NZ8.c4i"
+            """;
+
     private static final String IDENTIFY_NOTIFICATION = """
             NOTIFY IDENTIFY SDDP/1.0
             From: "192.168.4.237:1902"
@@ -114,6 +127,29 @@ public class SddpDiscoveryServiceTests {
             assertNotNull(device);
             assertEquals("192.168.4.237:1902", device.from);
             assertEquals("JVC_PROJECTOR-E0DADC152802", device.host);
+            assertEquals("1800", device.maxAge);
+            assertEquals("JVCKENWOOD:Projector", device.type);
+            assertEquals("projector", device.primaryProxy);
+            assertEquals("projector", device.proxies);
+            assertEquals("JVCKENWOOD", device.manufacturer);
+            assertEquals("DLA-RS3100_NZ8", device.model);
+            assertEquals("projector_JVCKENWOOD_DLA-RS3100_NZ8.c4i", device.driver);
+            assertEquals("192.168.4.237", device.ipAddress);
+            assertEquals("e0-da-dc-15-28-02", device.macAddress);
+            assertEquals("1902", device.port);
+        }
+    }
+
+    @Test
+    void testAliveNotificationMacDelimited() throws Exception {
+        try (SddpDiscoveryService service = new SddpDiscoveryService(null, networkAddressService,
+                mock(TranslationProvider.class), mock(LocaleProvider.class))) {
+            Optional<SddpDevice> deviceOptional = service.createSddpDevice(ALIVE_NOTIFICATION_MAC_DELIMITED);
+            assertTrue(deviceOptional.isPresent());
+            SddpDevice device = deviceOptional.orElse(null);
+            assertNotNull(device);
+            assertEquals("192.168.4.237:1902", device.from);
+            assertEquals("JVC_PROJECTOR-E0:DA:DC:15:28:02", device.host);
             assertEquals("1800", device.maxAge);
             assertEquals("JVCKENWOOD:Projector", device.type);
             assertEquals("projector", device.primaryProxy);
