@@ -261,21 +261,25 @@ public class LightModel {
     /**
      * Minimum brightness percent to consider as light "ON"
      */
+    // All access must be guarded by "this"
     private double minimumOnBrightness = 1.0;
 
     /**
      * The 'coolest' white color temperature in Mirek/Mired
      */
+    // All access must be guarded by "this"
     private double mirekControlCoolest = 153;
 
     /**
      * The 'warmest' white color temperature in Mirek/Mired
      */
+    // All access must be guarded by "this"
     private double mirekControlWarmest = 500;
 
-    /*
+    /**
      * Step size for IncreaseDecreaseType commands
      */
+    // All access must be guarded by "this"
     private double stepSize = 10.0; // step size for IncreaseDecreaseType commands
 
     /*
@@ -287,21 +291,25 @@ public class LightModel {
     /**
      * The capabilities supported by the light
      */
+    // All access must be guarded by "this"
     private LightCapabilities lightCapabilities = LightCapabilities.COLOR_WITH_COLOR_TEMPERATURE;
 
     /**
      * The RGB data type supported
      */
+    // All access must be guarded by "this"
     private RgbDataType rgbDataType = RgbDataType.DEFAULT;
 
     /**
      * The capabilities of the cool white LED
      */
+    // All access must be guarded by "this"
     private WhiteLED coolWhiteLed = new WhiteLED(mirekControlCoolest);
 
     /**
      * The capabilities of warm white LED
      */
+    // All access must be guarded by "this"
     private WhiteLED warmWhiteLed = new WhiteLED(mirekControlWarmest);
 
     /*
@@ -313,26 +321,31 @@ public class LightModel {
     /**
      * Cached Brightness state, never null
      */
+    // All access must be guarded by "this"
     private PercentType cachedBrightness = PercentType.ZERO;
 
     /**
      * Cached Color state, never null
      */
+    // All access must be guarded by "this"
     private HSBType cachedHSB = new HSBType();
 
     /**
      * Cached Mirek/Mired state, may be NaN if not (yet) known
      */
+    // All access must be guarded by "this"
     private double cachedMirek = Double.NaN;
 
     /**
      * Cached OnOff state, may be null if not (yet) known
      */
+    // All access must be guarded by "this"
     private @Nullable OnOffType cachedOnOff = null;
 
     /**
      * The current operating mode of the light, default is WHITE only
      */
+    // All access must be guarded by "this"
     private LedOperatingMode ledOperatingMode = LedOperatingMode.WHITE_ONLY;
 
     /*
@@ -618,7 +631,7 @@ public class LightModel {
      *
      * @return PercentType, or null if not supported.
      */
-    public synchronized @Nullable PercentType getBrightness() {
+    public @Nullable PercentType getBrightness() {
         return getBrightness(false);
     }
 
@@ -705,7 +718,7 @@ public class LightModel {
      *
      * @return OnOffType representing the on/off state or null if not supported.
      */
-    public synchronized @Nullable OnOffType getOnOff() {
+    public @Nullable OnOffType getOnOff() {
         return getOnOff(false);
     }
 
@@ -855,7 +868,7 @@ public class LightModel {
      * @param command the command to handle.
      * @throws IllegalArgumentException if the command type is not supported.
      */
-    public synchronized void handleColorTemperatureCommand(Command command) throws IllegalArgumentException {
+    public void handleColorTemperatureCommand(Command command) throws IllegalArgumentException {
         if (command instanceof PercentType warmness) {
             zHandleColorTemperature(warmness);
         } else if (command instanceof QuantityType<?> temperature) {
@@ -879,7 +892,7 @@ public class LightModel {
      * @param command the command to handle.
      * @throws IllegalArgumentException if the command type is not supported.
      */
-    public synchronized void handleCommand(Command command) throws IllegalArgumentException {
+    public void handleCommand(Command command) throws IllegalArgumentException {
         if (command instanceof HSBType color) {
             zHandleHSBType(color);
         } else if (command instanceof PercentType brightness) {
@@ -902,7 +915,7 @@ public class LightModel {
      * @param brightness in the range [0..100]
      * @throws IllegalArgumentException if the value is outside the range [0.0 to 100.0]
      */
-    public synchronized void setBrightness(double brightness) throws IllegalArgumentException {
+    public void setBrightness(double brightness) throws IllegalArgumentException {
         zHandleBrightness(zPercentTypeFrom(brightness));
     }
 
@@ -993,7 +1006,7 @@ public class LightModel {
      *
      * @param on true for ON, false for OFF
      */
-    public synchronized void setOnOff(boolean on) {
+    public void setOnOff(boolean on) {
         zHandleOnOff(OnOffType.from(on));
     }
 
@@ -1177,7 +1190,7 @@ public class LightModel {
      *
      * @param brightness the brightness {@link PercentType} to set.
      */
-    private void zHandleBrightness(PercentType brightness) {
+    private synchronized void zHandleBrightness(PercentType brightness) {
         if (brightness.doubleValue() >= minimumOnBrightness) {
             cachedBrightness = brightness;
             cachedHSB = new HSBType(cachedHSB.getHue(), cachedHSB.getSaturation(), brightness);
@@ -1196,7 +1209,7 @@ public class LightModel {
      *
      * @param warmness the color temperature warmness {@link PercentType} to set.
      */
-    private void zHandleColorTemperature(PercentType warmness) {
+    private synchronized void zHandleColorTemperature(PercentType warmness) {
         setMirek(mirekControlCoolest + ((mirekControlWarmest - mirekControlCoolest) * warmness.doubleValue() / 100.0));
     }
 
@@ -1220,7 +1233,7 @@ public class LightModel {
      *
      * @param hsb the color {@link HSBType} to set.
      */
-    private void zHandleHSBType(HSBType hsb) {
+    private synchronized void zHandleHSBType(HSBType hsb) {
         cachedHSB = hsb;
         zHandleBrightness(hsb.getBrightness());
         cachedMirek = zMirekFrom(hsb);
@@ -1231,7 +1244,7 @@ public class LightModel {
      *
      * @param increaseDecrease the {@link IncreaseDecreaseType} command.
      */
-    private void zHandleIncreaseDecrease(IncreaseDecreaseType increaseDecrease) {
+    private synchronized void zHandleIncreaseDecrease(IncreaseDecreaseType increaseDecrease) {
         double bri = Math.min(Math.max(cachedHSB.getBrightness().doubleValue()
                 + ((IncreaseDecreaseType.INCREASE == increaseDecrease ? 1 : -1) * stepSize), 0.0), 100.0);
         setBrightness(bri);
@@ -1242,7 +1255,7 @@ public class LightModel {
      *
      * @param onOff the {@link OnOffType} command.
      */
-    private void zHandleOnOff(OnOffType onOff) {
+    private synchronized void zHandleOnOff(OnOffType onOff) {
         if (!Objects.equals(onOff, getOnOff())) {
             zHandleBrightness(OnOffType.OFF == onOff ? PercentType.ZERO : cachedBrightness);
         }
@@ -1257,7 +1270,9 @@ public class LightModel {
     private double zMirekFrom(HSBType hsb) {
         double[] xyY = ColorUtil.hsbToXY(new HSBType(hsb.getHue(), hsb.getSaturation(), PercentType.HUNDRED));
         double mirek = 1000000 / ColorUtil.xyToKelvin(new double[] { xyY[0], xyY[1] });
-        return Math.min(Math.max(mirek, mirekControlCoolest), mirekControlWarmest);
+        synchronized (this) {
+            return Math.min(Math.max(mirek, mirekControlCoolest), mirekControlWarmest);
+        }
     }
 
     /**
