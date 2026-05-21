@@ -79,6 +79,17 @@ public class ThingStatusInfoBuilder {
     }
 
     /**
+     * Appends a status detail to the status to build.
+     *
+     * @param statusDetail the status detail
+     * @return status info builder
+     */
+    public ThingStatusInfoBuilder withStatusDetail(ThingStatusDetail statusDetail) {
+        this.statusDetail = statusDetail;
+        return this;
+    }
+
+    /**
      * Applies a thing status badge decorator style to the status to build.
      *
      * @param decoratorStyle the badge decorator style

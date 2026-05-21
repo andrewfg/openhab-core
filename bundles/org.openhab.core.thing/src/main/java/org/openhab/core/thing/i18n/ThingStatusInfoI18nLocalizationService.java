@@ -48,6 +48,7 @@ import org.osgi.service.component.annotations.Reference;
  *
  * @author Thomas Höfer - Initial contribution
  * @author Henning Sudbrock - Permit translations from thing handler parent bundles
+ * @author Andrew Fiddian-Green - Support thing status badge decorator style
  */
 @Component(service = ThingStatusInfoI18nLocalizationService.class)
 public final class ThingStatusInfoI18nLocalizationService {
@@ -85,7 +86,8 @@ public final class ThingStatusInfoI18nLocalizationService {
 
         String translatedDescription = translateDescription(description, locale, thingHandler);
 
-        return new ThingStatusInfo(thing.getStatus(), thing.getStatusInfo().getStatusDetail(), translatedDescription);
+        return new ThingStatusInfo(thing.getStatus(), thing.getStatusInfo().getStatusDetail(), translatedDescription,
+                thing.getStatusInfo().getStatusBadgeDecoratorStyle());
     }
 
     @Reference

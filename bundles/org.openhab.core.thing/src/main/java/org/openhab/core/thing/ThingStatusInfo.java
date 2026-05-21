@@ -56,6 +56,18 @@ public class ThingStatusInfo {
 
     /**
      * Constructs a status info.
+     * Applies the default badge decorator style for backward compatibility.
+     *
+     * @param status the status (must not be null)
+     * @param statusDetail the detail of the status (must not be null)
+     * @param description the description of the status
+     */
+    public ThingStatusInfo(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
+        this(status, statusDetail, description, ThingStatusBadgeDecoratorStyle.INFORMATION);
+    }
+
+    /**
+     * Constructs a status info.
      *
      * @param status the status (must not be null)
      * @param statusDetail the detail of the status (must not be null)
