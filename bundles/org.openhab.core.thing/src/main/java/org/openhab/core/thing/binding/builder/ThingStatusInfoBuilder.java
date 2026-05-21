@@ -15,6 +15,7 @@ package org.openhab.core.thing.binding.builder;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.thing.ThingStatus;
+import org.openhab.core.thing.ThingStatusBadgeDecoratorStyle;
 import org.openhab.core.thing.ThingStatusDetail;
 import org.openhab.core.thing.ThingStatusInfo;
 
@@ -23,6 +24,7 @@ import org.openhab.core.thing.ThingStatusInfo;
  *
  * @author Stefan Bußweiler - Initial contribution
  * @author Dennis Nobel - Added null checks
+ * @author Andrew Fiddian-Green - Add thing status badge decorator style
  */
 @NonNullByDefault
 public class ThingStatusInfoBuilder {
@@ -33,21 +35,26 @@ public class ThingStatusInfoBuilder {
 
     private @Nullable String description;
 
-    private ThingStatusInfoBuilder(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
+    private ThingStatusBadgeDecoratorStyle decoratorStyle;
+
+    private ThingStatusInfoBuilder(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description,
+            ThingStatusBadgeDecoratorStyle decoratorStyle) {
         this.status = status;
         this.statusDetail = statusDetail;
         this.description = description;
+        this.decoratorStyle = decoratorStyle;
     }
 
     /**
      * Creates a status info builder for the given status and detail.
+     * Applies the prior blue dot badge decorator style as the default.
      *
      * @param status the status (must not be null)
      * @param statusDetail the detail of the status (must not be null)
      * @return status info builder
      */
     public static ThingStatusInfoBuilder create(ThingStatus status, ThingStatusDetail statusDetail) {
-        return new ThingStatusInfoBuilder(status, statusDetail, null);
+        return new ThingStatusInfoBuilder(status, statusDetail, null, ThingStatusBadgeDecoratorStyle.INFORMATION);
     }
 
     /**
@@ -72,13 +79,13 @@ public class ThingStatusInfoBuilder {
     }
 
     /**
-     * Appends a status detail to the status to build.
+     * Applies a thing status badge decorator style to the status to build.
      *
-     * @param statusDetail the status detail (must not be null)
+     * @param decoratorStyle the badge decorator style
      * @return status info builder
      */
-    public ThingStatusInfoBuilder withStatusDetail(ThingStatusDetail statusDetail) {
-        this.statusDetail = statusDetail;
+    public ThingStatusInfoBuilder withThingStatusBadgeDecoratorStyle(ThingStatusBadgeDecoratorStyle decoratorStyle) {
+        this.decoratorStyle = decoratorStyle;
         return this;
     }
 
@@ -88,6 +95,6 @@ public class ThingStatusInfoBuilder {
      * @return status info
      */
     public ThingStatusInfo build() {
-        return new ThingStatusInfo(status, statusDetail, description);
+        return new ThingStatusInfo(status, statusDetail, description, decoratorStyle);
     }
 }

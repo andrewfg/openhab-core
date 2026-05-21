@@ -29,6 +29,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  *
  * @author Stefan Bußweiler - Initial contribution
  * @author Dennis Nobel - Added null checks
+ * @author Andrew Fiddian-Green - Add thing status badge decorator style
  */
 @NonNullByDefault
 public class ThingStatusInfo {
@@ -41,12 +42,16 @@ public class ThingStatusInfo {
 
     private @Nullable String description;
 
+    @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+    private final ThingStatusBadgeDecoratorStyle decoratorStyle;
+
     /**
      * Default constructor for deserialization e.g. by Gson.
      */
     protected ThingStatusInfo() {
         status = ThingStatus.UNKNOWN;
         statusDetail = ThingStatusDetail.NONE;
+        decoratorStyle = ThingStatusBadgeDecoratorStyle.INFORMATION; // default style for backward compatibility
     }
 
     /**
@@ -55,11 +60,14 @@ public class ThingStatusInfo {
      * @param status the status (must not be null)
      * @param statusDetail the detail of the status (must not be null)
      * @param description the description of the status
+     * @param decoratorStyle the badge decorator style
      */
-    public ThingStatusInfo(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
+    public ThingStatusInfo(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description,
+            ThingStatusBadgeDecoratorStyle decoratorStyle) {
         this.status = status;
         this.statusDetail = statusDetail;
         this.description = description;
+        this.decoratorStyle = decoratorStyle;
     }
 
     /**
@@ -89,22 +97,40 @@ public class ThingStatusInfo {
         return description;
     }
 
+    /**
+     * Gets the badge decorator style.
+     *
+     * @return the badge decorator style
+     */
+    public ThingStatusBadgeDecoratorStyle getStatusBadgeDecoratorStyle() {
+        return decoratorStyle;
+    }
+
+    private boolean useDescription() {
+        return description != null && !description.isBlank();
+    }
+
+    private boolean useDecorator() {
+        return status == ThingStatus.ONLINE && useDescription();
+    }
+
     @Override
     public String toString() {
-        String description = getDescription();
-        return getStatus() + (getStatusDetail() == ThingStatusDetail.NONE ? "" : " (" + getStatusDetail() + ")")
-                + (description == null || description.isBlank() ? "" : ": " + description);
+        return status + (statusDetail == ThingStatusDetail.NONE ? "" : " (" + statusDetail + ")")
+                + (useDescription() ? ": " + description : "") + (useDecorator() ? " [" + decoratorStyle + "]" : "");
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        String description = this.description; // prevent NPE in case the class variable is changed between the two
-                                               // calls in the next line
-        result = prime * result + ((description == null) ? 0 : description.hashCode());
+        String description = this.description;
+        result = prime * result + (description == null ? 0 : description.hashCode());
         result = prime * result + status.hashCode();
         result = prime * result + statusDetail.hashCode();
+        if (useDecorator()) {
+            result = prime * result + decoratorStyle.hashCode();
+        }
         return result;
     }
 
@@ -120,18 +146,17 @@ public class ThingStatusInfo {
             return false;
         }
         ThingStatusInfo other = (ThingStatusInfo) obj;
-        if (description == null) {
-            if (other.description != null) {
-                return false;
-            }
-        } else if (!Objects.equals(description, other.description)) {
-            return false;
-        }
         if (status != other.status) {
             return false;
         }
         if (statusDetail != other.statusDetail) {
             return false;
+        }
+        if (!Objects.equals(description, other.description)) {
+            return false;
+        }
+        if (useDecorator()) {
+            return decoratorStyle == other.decoratorStyle;
         }
         return true;
     }

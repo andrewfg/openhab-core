@@ -31,6 +31,7 @@ import org.openhab.core.thing.Channel;
 import org.openhab.core.thing.ChannelUID;
 import org.openhab.core.thing.Thing;
 import org.openhab.core.thing.ThingStatus;
+import org.openhab.core.thing.ThingStatusBadgeDecoratorStyle;
 import org.openhab.core.thing.ThingStatusDetail;
 import org.openhab.core.thing.ThingStatusInfo;
 import org.openhab.core.thing.ThingTypeUID;
@@ -63,7 +64,7 @@ import org.slf4j.LoggerFactory;
  * @author Kai Kreuzer - Refactored isLinked method to not use deprecated functions anymore
  * @author Christoph Weitkamp - Moved OSGI ServiceTracker from BaseThingHandler to ThingHandlerCallback
  * @author Jan N. Klug - added time series support
- * @author Andrew Fiddian-Green - Added semanticEquipmentTag
+ * @author Andrew Fiddian-Green - Added semanticEquipmentTag and thing status badge decorator style
  */
 @NonNullByDefault
 public abstract class BaseThingHandler implements ThingHandler {
@@ -449,18 +450,33 @@ public abstract class BaseThingHandler implements ThingHandler {
      * @param status the status
      * @param statusDetail the detail of the status
      * @param description the description of the status
+     * @param decoratorStyle the thing badge status decorator style
      */
-    protected void updateStatus(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
+    protected void updateStatus(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description,
+            ThingStatusBadgeDecoratorStyle decoratorStyle) {
         synchronized (this) {
             if (this.callback != null) {
-                ThingStatusInfoBuilder statusBuilder = ThingStatusInfoBuilder.create(status, statusDetail);
-                ThingStatusInfo statusInfo = statusBuilder.withDescription(description).build();
+                ThingStatusInfoBuilder statusBuilder = ThingStatusInfoBuilder.create(status, statusDetail)
+                        .withDescription(description).withThingStatusBadgeDecoratorStyle(decoratorStyle);
+                ThingStatusInfo statusInfo = statusBuilder.build();
                 this.callback.statusUpdated(this.thing, statusInfo);
             } else {
                 logger.warn("Handler {} tried updating the thing status although the handler was already disposed.",
                         this.getClass().getSimpleName());
             }
         }
+    }
+
+    /**
+     * Updates the status of the thing.
+     * Applies the default blue dot style for backward compatibility.
+     *
+     * @param status the status
+     * @param statusDetail the detail of the status
+     * @param description the description of the status
+     */
+    protected void updateStatus(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
+        updateStatus(status, statusDetail, description, ThingStatusBadgeDecoratorStyle.INFORMATION);
     }
 
     /**
