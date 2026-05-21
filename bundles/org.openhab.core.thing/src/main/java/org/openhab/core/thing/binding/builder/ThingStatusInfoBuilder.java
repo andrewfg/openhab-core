@@ -81,7 +81,7 @@ public class ThingStatusInfoBuilder {
     /**
      * Appends a status detail to the status to build.
      *
-     * @param statusDetail the status detail
+     * @param statusDetail the status detail (must not be null)
      * @return status info builder
      */
     public ThingStatusInfoBuilder withStatusDetail(ThingStatusDetail statusDetail) {
