@@ -456,9 +456,9 @@ public abstract class BaseThingHandler implements ThingHandler {
             ThingStatusBadgeDecoratorStyle decoratorStyle) {
         synchronized (this) {
             if (this.callback != null) {
-                ThingStatusInfoBuilder statusBuilder = ThingStatusInfoBuilder.create(status, statusDetail)
-                        .withDescription(description).withThingStatusBadgeDecoratorStyle(decoratorStyle);
-                ThingStatusInfo statusInfo = statusBuilder.build();
+                ThingStatusInfoBuilder statusBuilder = ThingStatusInfoBuilder.create(status, statusDetail);
+                ThingStatusInfo statusInfo = statusBuilder.withDescription(description)
+                        .withThingStatusBadgeDecoratorStyle(decoratorStyle).build();
                 this.callback.statusUpdated(this.thing, statusInfo);
             } else {
                 logger.warn("Handler {} tried updating the thing status although the handler was already disposed.",
