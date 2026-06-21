@@ -25,6 +25,11 @@
       <plugin>
         <groupId>org.apache.karaf.tooling</groupId>
         <artifactId>karaf-maven-plugin</artifactId>
+        <configuration>
+          <startupBundles>
+            <bundle>mvn:org.openhab.core.bundles/org.openhab.core.paxlogging/${project.version};start-level=8</bundle>
+          </startupBundles>
+        </configuration>
       </plugin>
     </plugins>
   </build>
