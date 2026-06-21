@@ -52,12 +52,14 @@ public class PaxLoggingDeferredConfigurator implements FrameworkListener {
 
     @Activate
     public PaxLoggingDeferredConfigurator(BundleContext context) {
+        logger.info("PaxLoggingDeferredConfigurator activated");
         this.context = context;
         context.addFrameworkListener(this);
     }
 
     @Deactivate
     public void deactivate() {
+        logger.info("PaxLoggingDeferredConfigurator deactivated");
         context.removeFrameworkListener(this);
     }
 
@@ -66,6 +68,7 @@ public class PaxLoggingDeferredConfigurator implements FrameworkListener {
         if (event == null || event.getType() != FrameworkEvent.STARTED) {
             return;
         }
+        logger.info("PaxLoggingDeferredConfigurator received FrameworkEvent.STARTED");
         ServiceReference<PaxLoggingService> reference = context.getServiceReference(PaxLoggingService.class);
         if (reference == null) {
             logger.debug("PaxLoggingService reference missing");
@@ -77,6 +80,7 @@ public class PaxLoggingDeferredConfigurator implements FrameworkListener {
             return;
         }
         try {
+            logger.info("PaxLoggingService.{}() being invoked", TARGET_METHOD);
             Method method = service.getClass().getMethod(TARGET_METHOD);
             method.invoke(service);
         } catch (NoSuchMethodException e) {
