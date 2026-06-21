@@ -725,6 +725,11 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
             try {
                 m_logReader.setMaxEntries(Integer.parseInt((String) size));
             } catch (Exception e) {
+                /*
+                 * ========= OPENHAB CODE =========
+                 * We can't use a logger here since the logging framework isn't ready yet, so we made is an
+                 * entry in 'suppressions.xml' to suppress the code style analysis printStackTrace error.
+                 */
                 e.printStackTrace();
             }
         }

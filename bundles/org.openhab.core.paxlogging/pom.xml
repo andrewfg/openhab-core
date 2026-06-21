@@ -43,10 +43,10 @@
         <extensions>true</extensions>
         <configuration>
           <bnd><![CDATA[
-    Fragment-Host: org.ops4j.pax.logging.pax-logging-log4j2
-    -ignorepackage: org.ops4j.pax.logging.log4j2.internal
-    Import-Package: *
-  ]]></bnd>
+            Fragment-Host: org.ops4j.pax.logging.pax-logging-log4j2
+            -ignorepackage: org.ops4j.pax.logging.log4j2.internal
+            Import-Package: *
+          ]]></bnd>
         </configuration>
       </plugin>
     </plugins>

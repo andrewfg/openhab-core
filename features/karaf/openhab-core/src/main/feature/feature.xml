@@ -20,6 +20,9 @@
 	<feature name="openhab-core-base" description="openHAB Core" version="${project.version}">
 		<details>openHAB Core base bundles</details>
 
+		<!-- This must be started as soon as possible as it registers the logging fragment override -->
+		<bundle start-level="8">mvn:org.openhab.core.bundles/org.openhab.core.paxlogging/${project.version}</bundle>
+
 		<requirement>openhab.tp;filter:="(feature=base)"</requirement>
 		<feature dependency="true">openhab.tp-base</feature>
 

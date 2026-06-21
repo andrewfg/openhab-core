@@ -40,4 +40,7 @@
 	<!-- technical reasons, causes other issues if changed -->
 	<suppress files=".+org.openhab.core.tools.UpgradeTool.java" checks="AvoidStarImportCheck"/>
 	<suppress files=".+org.openhab.core.auth.client.oauth2.OAuthClientService.java" checks="JavadocMethodStyleCheck"/>
+	
+	<!-- PaxLoggingServiceImpl calls printStackTrace (it cannot use a logger since the logging framework is not ready) -->
+	<suppress files=".+org.ops4j.pax.logging.log4j2.internal.PaxLoggingServiceImpl.java" checks="IllegalTokenText"/>
 </suppressions>
