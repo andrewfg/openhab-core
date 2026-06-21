@@ -147,6 +147,8 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
 
     // ========= OPENHAB CODE =========
     private volatile Dictionary<String, ?> deferredConfiguration = null;
+    private AtomicBoolean deferralEnabled = new AtomicBoolean(true);
+    private volatile boolean deferralCompleted = false;
 
     public PaxLoggingServiceImpl(BundleContext bundleContext, LogReaderServiceImpl logReader,
             EventAdminPoster eventAdmin, ConfigurationNotifier configNotifier) {
@@ -834,12 +836,11 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
         if (configuration == null) {
             return false;
         }
-        Dictionary<String, ?> defConf = deferredConfiguration;
-        if (defConf == null) {
-            return false;
+        if (deferralEnabled.compareAndSet(true, false)) {
+            deferredConfiguration = configuration;
+            return true;
         }
-        deferredConfiguration = configuration;
-        return true;
+        return false;
     }
 
     /**
@@ -850,11 +851,15 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
      * during initial startup.
      */
     public void setDeferredConfiguration() {
+        if (deferralCompleted) {
+            return;
+        }
+        deferralCompleted = true;
         Dictionary<String, ?> defConf = deferredConfiguration;
         if (defConf == null) {
             return;
         }
-        updated(defConf);
         deferredConfiguration = null;
+        updated(defConf);
     }
 }
