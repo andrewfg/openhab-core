@@ -17,13 +17,13 @@
     <dependency>
       <groupId>org.ops4j.pax.logging</groupId>
       <artifactId>pax-logging-api</artifactId>
-      <version>2.3.3</version>
+      <version>${pax.logging.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.ops4j.pax.logging</groupId>
       <artifactId>pax-logging-log4j2</artifactId>
-      <version>2.3.3</version>
+      <version>${pax.logging.version}</version>
       <scope>provided</scope>
     </dependency>
 
@@ -43,9 +43,9 @@
         <extensions>true</extensions>
         <configuration>
           <bnd><![CDATA[
-            Fragment-Host: pax-logging-log4j2,org.ops4j.pax.logging.pax-logging-log4j2;bundle-version="[2.3.0,2.4.0)"
-            -exportcontents: org.ops4j.pax.logging.log4j2.internal
-            Import-Package: !org.ops4j.pax.logging.log4j2.internal, *
+            Fragment-Host: org.ops4j.pax.logging.pax-logging-log4j2;bundle-version="[2.2.0,2.4.0)"
+            -ignorepackage: org.ops4j.pax.logging.log4j2.internal
+            Import-Package: *
           ]]></bnd>
         </configuration>
       </plugin>

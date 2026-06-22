@@ -85,6 +85,7 @@
     <spotless.eclipse.version>4.25</spotless.eclipse.version>
     <spotless.eclipse.wtp.version>4.21.0</spotless.eclipse.wtp.version>
     <swagger.version>2.2.49</swagger.version>
+    <pax.logging.version>2.3.3</pax.logging.version>
 
     <!-- TEST -->
     <!-- cxf can be updated independently, karaf only uses it in tests -->
