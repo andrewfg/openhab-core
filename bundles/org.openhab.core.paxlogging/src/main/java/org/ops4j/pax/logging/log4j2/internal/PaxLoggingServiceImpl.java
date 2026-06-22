@@ -33,10 +33,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URI;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Dictionary;
 import java.util.Enumeration;
 import java.util.Properties;
@@ -175,6 +179,7 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
         if ("true".equalsIgnoreCase(errorsAsExceptionValue)) {
             errorsAsException = true;
         }
+        logTrace("PaxLoggingServiceImpl() constructed");
     }
 
     // org.ops4j.pax.logging.PaxLoggingService
@@ -339,6 +344,7 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
      * @param configuration
      */
     synchronized void updated(Dictionary<String, ?> configuration) {
+        logTrace("updated(%s) called".formatted(null != configuration ? configuration.toString() : "null"));
         if (closed) {
             return;
         }
@@ -354,6 +360,8 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
         if (saveDeferredConfiguration(configuration)) {
             return;
         }
+
+        logTrace("updated() applying configuration");
 
         Object useLocks = configuration.get(PaxLoggingConstants.PID_CFG_USE_LOCKS);
         if (!"false".equalsIgnoreCase(String.valueOf(useLocks))) {
@@ -833,11 +841,13 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
      * @return {@code true} if the configuration was saved as deferred configuration, {@code false} otherwise
      */
     private boolean saveDeferredConfiguration(Dictionary<String, ?> configuration) {
+        logTrace("saveDeferredConfiguration() called");
         if (configuration == null) {
             return false;
         }
         if (deferralEnabled.compareAndSet(true, false)) {
             deferredConfiguration = configuration;
+            logTrace("saveDeferredConfiguration() executed");
             return true;
         }
         return false;
@@ -851,6 +861,7 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
      * during initial startup.
      */
     public void setDeferredConfiguration() {
+        logTrace("setDeferredConfiguration() called");
         if (deferralCompleted) {
             return;
         }
@@ -861,5 +872,25 @@ public class PaxLoggingServiceImpl implements PaxLoggingService, ServiceFactory<
         }
         deferredConfiguration = null;
         updated(defConf);
+        logTrace("setDeferredConfiguration() executed");
+    }
+
+    /**
+     * ========= OPENHAB INSTRUMENTATION =========
+     * Writes debug events directly to a file to track early boot lifecycles.
+     * Appends entries chronologically and is synchronized to ensure thread safety.
+     *
+     * @param message The diagnostic text statement to commit to the file trace
+     */
+    private synchronized void logTrace(String message) {
+        try {
+            File file = new java.io.File("userdata/log/fragment-trace.log");
+            file.getParentFile().mkdirs();
+            try (PrintWriter out = new PrintWriter(new FileWriter(file, true))) {
+                String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
+                out.println("[" + timestamp + "] [THREAD: " + Thread.currentThread().getName() + "] " + message);
+            }
+        } catch (Exception ignored) {
+        }
     }
 }

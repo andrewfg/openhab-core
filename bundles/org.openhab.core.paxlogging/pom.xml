@@ -43,9 +43,9 @@
         <extensions>true</extensions>
         <configuration>
           <bnd><![CDATA[
-            Fragment-Host: org.ops4j.pax.logging.pax-logging-log4j2
-            -ignorepackage: org.ops4j.pax.logging.log4j2.internal
-            Import-Package: *
+            Fragment-Host: pax-logging-log4j2,org.ops4j.pax.logging.pax-logging-log4j2;bundle-version="[2.3.0,2.4.0)"
+            -exportcontents: org.ops4j.pax.logging.log4j2.internal
+            Import-Package: !org.ops4j.pax.logging.log4j2.internal, *
           ]]></bnd>
         </configuration>
       </plugin>
